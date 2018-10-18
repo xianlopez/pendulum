@@ -4,11 +4,16 @@ import numpy as np
 
 
 def define_network(batch_size, n_features):
+    print('defining network')
     inputs = tf.placeholder(dtype=tf.float32, shape=(batch_size, n_features))
     net = tf.layers.dense(inputs, 5, activation=tf.sigmoid, kernel_initializer=tf.initializers.random_normal, name='dense1')
     net = tf.layers.dense(net, 5, activation=tf.sigmoid, kernel_initializer=tf.initializers.random_normal, name='dense2')
     net = tf.layers.dense(net, 1, activation=tf.sigmoid, kernel_initializer=tf.initializers.random_normal, name='output')
     gradients = tf.gradients(net, tf.trainable_variables())
+    for variable in tf.trainable_variables():
+        print('')
+        print(variable)
+    print(gradients)
     return inputs, net, gradients
 
 def assign_to_variables():
@@ -51,9 +56,6 @@ class neural_netowrk_rl:
         inputs = np.array([theta, theta_dif, a], dtype=np.float32)
         inputs = np.expand_dims(inputs, axis=0)
         q_hat = self.sess.run(fetches=self.net, feed_dict={self.inputs: inputs})[0]
-        # print('q_hat')
-        # print(q_hat)
-        # print(q_hat[0])
         q_hat = q_hat[0]
         return q_hat
 
@@ -68,40 +70,16 @@ class neural_netowrk_rl:
     def update(self, s_t, a_t, s_tp1, a_tp1, R_tp1):
         w = self.sess.run(fetches=tf.trainable_variables())
         q_prev = self.compute_q(s_t, a_t)
-        print('q_prev')
-        # print(len(q_prev))
-        print(q_prev)
         q_next = self.compute_q(s_tp1, a_tp1)
-        print('q_next')
-        # print(len(q_next))
-        print(q_next)
         q_gradient_prev = self.compute_gradient_q(s_t, a_t)
-        print('q_gradient_prev')
-        print(len(q_gradient_prev))
-        print(q_gradient_prev)
         U = R_tp1 + self.gamma * q_next
-        print('U')
-        # print(len(U))
-        print(U)
         for i in range(len(tf.trainable_variables())):
             increment = self.alpha * (U - q_prev) * q_gradient_prev[i]
-            print('increment')
-            print(len(increment))
-            print(increment)
-            print('w')
-            print(len(w))
-            print(w)
             w[i] = w[i] + increment
-            print('w')
-            print(len(w))
-            print(w)
         feed_dict = {}
-        print('creating dictionary')
-        for i in range(len(tf.trainable_variables())):
-            variable = tf.trainable_variables()[i]
-            print(variable)
+        for i in range(len(self.new_values_list)):
+            variable = self.new_values_list[i]
             feed_dict[variable] = w[i]
-        print(feed_dict)
         self.sess.run(self.assign_variables_op, feed_dict=feed_dict)
 
     def compute_best_action(self, s):
@@ -120,21 +98,21 @@ class neural_netowrk_rl:
 ##### Claro, porque as actualizo. Habería q ver como facer esta actualización licitamente.
 
 
-def add():
-    print("add")
-    x = a + b
-    return x
-
-def last():
-    print("last")
-    return x
-
-with tf.Session() as s:
-    a = tf.Variable(tf.constant(0.),name="a")
-    b = tf.Variable(tf.constant(0.),name="b")
-    x = tf.constant(-1.)
-    calculate= tf.cond(x.eval()==-1.,add,last)
-    val = s.run([calculate], {a: 1., b: 2.})
-    print(val) # 3
-    print(s.run([calculate],{a:3.,b:4.})) # 7
-    print(val) # 3
+# def add():
+#     print("add")
+#     x = a + b
+#     return x
+#
+# def last():
+#     print("last")
+#     return x
+#
+# with tf.Session() as s:
+#     a = tf.Variable(tf.constant(0.),name="a")
+#     b = tf.Variable(tf.constant(0.),name="b")
+#     x = tf.constant(-1.)
+#     calculate= tf.cond(x.eval()==-1.,add,last)
+#     val = s.run([calculate], {a: 1., b: 2.})
+#     print(val) # 3
+#     print(s.run([calculate],{a:3.,b:4.})) # 7
+#     print(val) # 3

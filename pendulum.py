@@ -127,7 +127,7 @@ def simulate():
             # print('Reward: ' + str(reward))
             # if ep == n_episodes -1:
             #     plot_state(s_next, ep + 1, i + 1, reward)
-            plot_state(s_next, ep + 1, i + 1, reward)
+            # plot_state(s_next, ep + 1, i + 1, reward)
             s_prev = s_next
             action_prev = action
         print('Episde undiscounted return: ' + str(episode_undiscounted_return))
