@@ -67,6 +67,35 @@ class neural_netowrk_rl:
         gradient = self.sess.run(fetches=self.gradients, feed_dict={self.inputs: inputs})
         return gradient
 
+    def train(self, D):
+        # D: (n_batches, batch_size, n_states + 1 + n_states + 1 + 1). Last dimension: [s_t, a_t, s_tp1, a_tp1, R_tp1]
+        n_batches = D.shape[0]
+        batch_size = D.shape[1]
+        n_states = int((D.shape[2] - 3) / 2)
+        for b in range(n_batches):
+            print('batch ' + str(b + 1))
+            w = self.sess.run(fetches=tf.trainable_variables())
+            for i in range(batch_size):
+                print('    step ' + str(i + 1))
+                current_experience = D[b, i, :]
+                s_t = current_experience[:n_states]
+                a_t = current_experience[n_states]
+                s_tp1 = current_experience[(n_states+1):(2*n_states+1)]
+                a_tp1 = current_experience[2*n_states+1]
+                R_tp1 = current_experience[(2*n_states+2):]
+                q_prev = self.compute_q(s_t, a_t)
+                q_next = self.compute_q(s_tp1, a_tp1)
+                q_gradient_prev = self.compute_gradient_q(s_t, a_t)
+                U = R_tp1 + self.gamma * q_next
+                for i in range(len(tf.trainable_variables())):
+                    increment = self.alpha * (U - q_prev) * q_gradient_prev[i]
+                    w[i] = w[i] + increment
+            feed_dict = {}
+            for i in range(len(self.new_values_list)):
+                variable = self.new_values_list[i]
+                feed_dict[variable] = w[i]
+            self.sess.run(self.assign_variables_op, feed_dict=feed_dict)
+
     def update(self, s_t, a_t, s_tp1, a_tp1, R_tp1):
         w = self.sess.run(fetches=tf.trainable_variables())
         q_prev = self.compute_q(s_t, a_t)
@@ -90,7 +119,7 @@ class neural_netowrk_rl:
         best_action = self.all_actions[np.argmax(q_of_all_actions)]
         if np.random.rand() < 0.1:
             best_action = np.random.choice(self.all_actions)
-        print('Action: ' + str(best_action))
+        # print('Action: ' + str(best_action))
         return best_action
 
 

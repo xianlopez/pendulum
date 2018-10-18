@@ -104,6 +104,62 @@ def update_state(s_prev, action):
     s_next = [theta_next, w_next]
     return s_next
 
+def make_sample(s_t, a_t, s_tp1, a_tp1, R_tp1, n_states):
+    sample = np.zeros(2 * n_states + 3)
+    for i in range(n_states):
+        sample[i] = s_t[i]
+    sample[n_states] = a_t
+    for i in range(n_states):
+        sample[n_states + 1 + i] = s_tp1[i]
+    sample[2 * n_states + 1] = a_tp1
+    sample[2 * n_states + 2] = R_tp1
+    return sample
+
+def batch_data(D, n_states):
+    batch_size = 10
+    n_samples = len(D)
+    n_batches = n_samples // batch_size
+    n_samples_used = n_batches * batch_size
+    D_batched = np.zeros(shape=(n_batches, batch_size, n_states * 2 + 3))
+    indices = np.arange(n_samples)
+    np.random.shuffle(indices)
+    indices = indices[:n_samples_used]
+    count = 0
+    for b in range(n_batches):
+        for i in range(batch_size):
+            D_batched[b, i, :] = D[indices[count]]
+            count += 1
+    return D_batched
+
+def simulate_batched():
+    n_episodes_per_training = 5
+    n_states = 2
+    D = []
+    ep_count_in_train = 0
+    for ep in range(n_episodes):
+        print('EPISODE ' + str(ep + 1))
+        ep_count_in_train += 1
+        episode_undiscounted_return = 0
+        action_prev = None
+        s_prev = [np.random.rand() * 2 * np.pi, 0]
+        for i in range(n_steps_per_episode):
+            action = take_action_from_state(s_prev)
+            reward = 0
+            for _ in range(n_sim_steps_per_control_step):
+                s_next = update_state(s_prev, action)
+                reward += reward_from_state(s_next)
+                episode_undiscounted_return += reward
+            sample = make_sample(s_prev, action_prev, s_next, action, reward, n_states)
+            D.append(sample)
+            s_prev = s_next
+            action_prev = action
+        if ep_count_in_train == n_episodes_per_training:
+            print('Ready to train')
+            ep_count_in_train = 0
+            D_batched = batch_data(D, n_states)
+            q_learning.train(D_batched)
+    print('Done.')
+
 def simulate():
     total_undiscounted_return = 0
     for ep in range(n_episodes):
@@ -136,7 +192,8 @@ def simulate():
     print('Done.')
 
 if __name__ == '__main__':
-    simulate()
+    # simulate()
+    simulate_batched()
 
 
 
