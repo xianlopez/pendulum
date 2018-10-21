@@ -3,10 +3,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from linear_continuous_q_learning import linear_continuous_q_learning, put_angle_into_range
-from neural_network import neural_netowrk_rl
+import tools
 
-plt.ion()
+# plt.ion()
 
 m = 2  # kg
 g = 9.8  # N / kg
@@ -31,8 +30,6 @@ before = None
 alpha = 0.001
 gamma = 0.99
 a_max = 3
-# q_learning = linear_continuous_q_learning(alpha, gamma, a_max)
-q_learning = neural_netowrk_rl(alpha, gamma, a_max, 5)
 
 # def reward_from_state(s):
 #     theta = s[0]
@@ -93,7 +90,7 @@ def update_state(s_prev, action):
     gravity = m * g * l * np.sin(theta_prev)
     alpha = (action - gravity) / I - friction * w_prev * np.abs(w_prev)
     w_next = w_prev + dt * alpha
-    theta_next = put_angle_into_range(theta_prev + dt * w_next)
+    theta_next = tools.put_angle_into_range(theta_prev + dt * w_next)
     s_next = [theta_next, w_next]
     return s_next
 
