@@ -4,18 +4,25 @@ import cv2
 import gym
 
 class dqn_atari:
-    def __init__(self, rmsprop_learning_rate, rmsprop_decay, rmsprop_momentum, gamma, a_max, n_actions, n_features, batch_size):
-        self.rmsprop_learning_rate = rmsprop_learning_rate
-        self.rmsprop_decay = rmsprop_decay
-        self.rmsprop_momentum = rmsprop_momentum
-        self.gamma = gamma
-        self.n_actions = n_actions
-        self.n_features = n_features
-        self.batch_size = batch_size
+    def __init__(self):
         self.env = gym.make('SpaceInvadersDeterministic-v4')
         self.define_graph()
         self.sess = None
         self.memory_position = None
+        self.rmsprop_learning_rate = 0.00025
+        self.rmsprop_decay = 0.95
+        self.rmsprop_momentum = 0.95
+        self.gamma = 0.99
+        self.batch_size = 32
+        self.img_width = 84
+        self.img_height = 84
+        self.n_sim_steps_per_control_step = 4
+        self.epsilon_policy = 0.1
+        self.n_steps_initialization = 50000
+        self.n_steps_evaluate = 250000
+        self.n_steps_to_update_target_network = 1e4
+        self.n_features = self.img_width * self.img_height
+        self.n_actions =
 
     def start_session(self, replay_memory_capacity):
         self.replay_memory_capacity = replay_memory_capacity
@@ -33,7 +40,7 @@ class dqn_atari:
         # The original images from the Atari environment 210x160x3 images.
         # We convert to grayscale, and rescale to 84x84.
         img_gray = np.mean(img, axis=-1).astype(np.uint8)
-        img_prep = cv2.resize(img_gray, [84, 84])
+        img_prep = cv2.resize(img_gray, [self.img_width, self.img_height])
         return img_prep
 
     def build_state_from_sequence_of_observations(self, observations):
@@ -45,10 +52,13 @@ class dqn_atari:
         return state
 
     def take_action_epislon_greedy(self, s):
-        if np.random.rand() < self.epsilon_policy:
+        if s is None:
             a = self.env.action_space.sample()
         else:
-            a = self.compute_best_action(s)
+            if np.random.rand() < self.epsilon_policy:
+                a = self.env.action_space.sample()
+            else:
+                a = self.compute_best_action(s)
         return a
 
     def evaluate(self):
@@ -70,28 +80,51 @@ class dqn_atari:
             completed = True
         return observations, reward, done, completed
 
-    def initialize_episode(self):
-        n_noop_steps = np.random.randint(31)
-        for _ in n_noop_steps:
-            self.env.step(0) # 0 is the No-Op action
-
-    def simulate(self):
-        self.start_session(self.replay_memory_capacity)
-        count_steps_to_update_target_network = 0
-
-        self.initialize_training()
+    def initialize_training(self):
         continue_playing = True
         step = 0
         while continue_playing:
             self.initialize_episode()
-            observation_prev = self.env.reset()
+            self.env.reset()
+            state_prev = None
+            while True:
+                action = self.env.action_space.sample()
+                observations, reward, done, completed = self.take_agent_step(action)
+                state_next = self.build_state_from_sequence_of_observations(observations)
+                if state_prev is not None:
+                    self.add_to_memory(state_prev, action, reward, state_next, done)
+                state_prev = state_next
+                step += 1
+                if step == self.n_steps_initialization:
+                    print('End of training')
+                    continue_playing = False
+                    break
+                if done:
+                    break
+
+    def initialize_episode(self):
+        n_noop_steps = np.random.randint(31)
+        for _ in n_noop_steps:
+            self.env.step(0)  # 0 is the No-Op action
+
+    def train(self):
+        self.start_session(self.replay_memory_capacity)
+        self.initialize_training()
+        continue_playing = True
+        step = 0
+        count_steps_to_update_target_network = 0
+        while continue_playing:
+            self.initialize_episode()
+            self.env.reset()
+            state_prev = None
             t = 0
             while True:
                 # env.render()
-                action = self.take_action_epislon_greedy(observation_prev)
+                action = self.take_action_epislon_greedy(state_prev)
                 observations, reward, done, completed = self.take_agent_step(action)
                 state_next = self.build_state_from_sequence_of_observations(observations)
-                self.add_to_memory(state_prev, action, reward, state_next, done)
+                if state_prev is not None:
+                    self.add_to_memory(state_prev, action, reward, state_next, done)
                 if self.is_ready_to_train():
                     loss = self.train_step()
                 if count_steps_to_update_target_network == self.n_steps_to_update_target_network:
