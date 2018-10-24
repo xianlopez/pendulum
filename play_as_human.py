@@ -23,6 +23,8 @@ for i_episode in range(20):
         else:
             action = 0 # No-Op
         observation, reward, done, info = env.step(action)
+        remaining_lives = info['ale.lives']
+        print(remaining_lives)
         t += 1
         if done:
             print("Episode finished after {} timesteps".format(t+1))
