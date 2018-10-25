@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 import gym
 import matplotlib.pyplot as plt
+import os
 
 class dqn_atari:
     def __init__(self):
@@ -18,18 +19,22 @@ class dqn_atari:
         # self.n_sim_steps_per_control_step = 4  # For all games except Space Invaders
         self.n_sim_steps_per_control_step = 3  # For Space Invaders
         self.epsilon_policy = 0.1
-        # self.n_steps_initialization = 200
-        self.n_steps_initialization = 50000
-        self.n_steps_evaluate = 250000
-        # self.n_steps_evaluate = 250
         self.n_episodes_evaluation = 30
-        self.n_steps_to_update_target_network = int(1e4)
-        # self.n_steps_to_update_target_network = int(1e1)
+
+        self.n_steps_initialization = 200
+        self.n_steps_evaluate = 250
+        self.n_steps_to_update_target_network = int(1e1)
+        self.n_steps_train = int(1e3) * 2
+        self.replay_memory_capacity = int(1e2) * 4
         self.n_steps_display = 100
-        self.n_steps_train = int(1e7)
-        # self.n_steps_train = int(1e3) * 2
-        self.replay_memory_capacity = int(1e5) * 2
-        # self.replay_memory_capacity = int(1e2) * 4
+
+        # self.n_steps_initialization = 50000
+        # self.n_steps_evaluate = 250000
+        # self.n_steps_to_update_target_network = int(1e4)
+        # self.n_steps_train = int(1e7)
+        # self.replay_memory_capacity = int(1e5) * 2
+        # self.n_steps_display = 1000
+
         self.render = False
         self.render_evaluation = False
         self.terminate_on_life_loss = True
@@ -37,6 +42,8 @@ class dqn_atari:
         self.define_graph()
         self.sess = None
         self.memory_position = None
+        self.best_score = None
+        self.scores = []
 
     def start_session(self):
         print('Starting session')
@@ -76,7 +83,7 @@ class dqn_atari:
                 a = self.compute_best_action(s)
         return a
 
-    def evaluate(self):
+    def evaluate(self, step):
         print('Evaluating')
         self.epsilon_policy = 0.05
         continue_playing = True
@@ -97,6 +104,21 @@ class dqn_atari:
                     break
         mean_score = np.mean(scores)
         print('Mean score: ' + str(mean_score))
+        self.scores.append(mean_score)
+        # Plot scores history:
+        self.plot_scores(step)
+        # Save the network weights if we improved the score:
+        save_weights = False
+        if self.best_score is None:
+            save_weights = True
+        elif self.best_score < mean_score:
+            save_weights = True
+        if save_weights:
+            self.best_score = mean_score
+            print('Saving network weights')
+            this_file_folder = os.path.dirname(os.path.abspath(__file__))
+            save_path = self.saver.save(self.sess, os.path.join(this_file_folder, 'model'), global_step=step)
+            print('Model saved to ' + save_path)
         return mean_score
 
     def take_agent_step(self, action):
@@ -165,7 +187,6 @@ class dqn_atari:
         step = 0
         count_steps_to_update_target_network = 0
         loss = None
-        scores = []
         while continue_playing:
             self.initialize_episode()
             state_prev = None
@@ -191,7 +212,7 @@ class dqn_atari:
                 if step % self.n_steps_display == 0 and loss is not None:
                     print('step = ' + str(step) + ', loss = ' + str(loss))
                 if step % self.n_steps_evaluate == 0:
-                    scores.append(self.evaluate())
+                    self.evaluate(step)
                 if step == self.n_steps_train:
                     print('End of training')
                     continue_playing = False
@@ -200,17 +221,20 @@ class dqn_atari:
                     # print("Episode finished after {} timesteps".format(t + 1))
                     break
         # Plot scores throughout the training:
-        self.plot_scores(scores)
+        self.plot_scores(step)
 
-    def plot_scores(self, scores):
-        steps_array = np.arange(0, self.n_steps_train, self.n_steps_evaluate) + self.n_steps_evaluate
-        scores_array = np.array(scores, dtype=np.float32)
-        print(steps_array)
-        print(scores_array)
-        assert len(steps_array) == len(scores_array), 'Unexpected number of evaluations'
-        plt.figure('scores')
-        plt.plot(steps_array, scores_array, 'r-')
-        plt.show()
+    def plot_scores(self, step):
+        if len(self.scores) > 1:
+            steps_array = np.arange(0, step, self.n_steps_evaluate) + self.n_steps_evaluate
+            scores_array = np.array(self.scores, dtype=np.float32)
+            print(steps_array)
+            print(scores_array)
+            assert len(steps_array) == len(scores_array), 'Unexpected number of evaluations'
+            plt.figure('scores')
+            plt.plot(steps_array, scores_array, 'r-')
+            # plt.show()
+            this_file_folder = os.path.dirname(os.path.abspath(__file__))
+            plt.savefig(os.path.join(this_file_folder, 'scores_history.png'))
 
     def add_to_memory(self, s_t, a_t, r_t, s_tp1, T):
         if self.memory_position is None:
@@ -354,6 +378,7 @@ class dqn_atari:
         optimizer = tf.train.RMSPropOptimizer(self.rmsprop_learning_rate, self.rmsprop_decay, self.rmsprop_momentum)
         self.train_op = optimizer.minimize(self.loss)
         self.create_update_target_op()
+        self.saver = tf.train.Saver(name='net_saver')
 
 
 
